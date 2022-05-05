@@ -1,36 +1,31 @@
-pipeline {
-    agent any
-    tools {
-        jdk 'jdk8'
-        maven 'M3'
-    }
+node() {
+	
+	def sonarScanner = tool name: 'SonarScanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+	stage("Code Checkout"){
+		checkout([$class: 'GitSCM', branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[credentialsId: 'GitHubCreds', url: 'https://github.com/bharu11/SonarQubeCoverageJava.git/']]])
+	}
 
-    environment {
-        JAVA_HOME = "${jdk}"
-    }
+	stage("Maven Build"){
+		sh """
+			ls -lart
+			mvn clean install
+		"""
+	}
 
-    stages {
-        stage('Prepare') {
-            steps {
-                checkout scm
-            }
-        }
+	stage("Code Review"){
+		withSonarQubeEnv(credentialsId: 'SonarQubeToken') {
+		//	sh "${sonarScanner}/bin/sonar-scanner"
+		}
+	
+	}
 
-        stage('Test') {
-            steps {
-                sh 'mvn install'
-            }
-        }
+	stage("Code Deployment"){
+	//	deploy adapters: [tomcat9(credentialsId: 'TomcatCreds', path: '', url: 'http://44.202.68.177:8080/')], contextPath: 'Bhargavi', war: 'target/*.war'
+	}
+	stage("Email Notification"){
+		    
+		    emailext attachLog: true, attachmentsPattern: 'target/*.war', body: '''$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS:
 
-        stage('QA') {
-            steps {
-                withSonarQubeEnv('sonar') {
-                    script {
-                        def scannerHome = tool 'sonarqube-scanner'
-                        sh "${scannerHome}/bin/sonar-scanner"
-                    }
-                }
-            }
-        }
-    }
+Check console output at $BUILD_URL to view the results.''', compressLog: true, subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'bhargavi.killari11@gmail.com'
+		}
 }
